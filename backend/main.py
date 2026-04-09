@@ -1,140 +1,58 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, File, UploadFile
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import shutil
-import os
-import traceback
+import os, shutil
 
-from database import init_db, insert_image, get_all_images
-from hashing import compute_phash, phash_similarity
-from visual_difference import compute_ssim
-from tamper_detection import detect_tampering
-from engagement import simulate_engagement
+# Import your modules
+import database, hashing, visual_difference, tamper_detection, engagement
 
-# OPTIONAL (keep if working)
-try:
-    from reverse_search_online import search_online
-except:
-    def search_online(x): return []
-
-# ------------------ APP SETUP ------------------
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# ------------------ STORAGE ------------------
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Paths tailored to your folder structure
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+ROOT_DIR = os.path.join(BASE_DIR, "..") # Looks up to root for index.html
 
-# ------------------ INIT DB ------------------
-init_db()
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+database.init_db()
 
-# ------------------ API ------------------
-@app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
-    try:
-        # 🔹 Save file
-        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+    path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+    current_hash = hashing.compute_phash(path)
+    db_images = database.get_all_images()
+    
+    best_phash = 0.0
+    best_ssim = 0.0
+    matches = 0
 
-        print("Saved:", file.filename)
+    for fname, db_h in db_images:
+        sim = hashing.calculate_similarity(current_hash, db_h)
+        if sim > 80:
+            matches += 1
+            db_path = os.path.join(UPLOAD_DIR, fname)
+            if os.path.exists(db_path):
+                s_score = visual_difference.compute_ssim(path, db_path)
+                best_ssim = max(best_ssim, s_score)
+        best_phash = max(best_phash, sim)
 
-        # 🔹 Generate hash
-        new_hash = compute_phash(file_path)
-        print("NEW HASH:", new_hash)
+    final = (0.7 * best_phash) + (0.3 * best_ssim) if best_ssim > 0 else best_phash
+    
+    database.add_image(file.filename, current_hash)
 
-        # 🔹 Get DB data
-        images = get_all_images()
-        print("DB DATA:", images)
+    return {
+        "final_score": final,
+        "decision": "Reused" if final > 80 else ("Suspicious" if final > 50 else "Authentic"),
+        "similarity": {"phash_similarity": best_phash, "ssim_score": best_ssim},
+        "traceability": {"seen_before_count": matches},
+        "tamper_analysis": tamper_detection.analyze_tampering(path),
+        "engagement": engagement.simulate_engagement(final)
+    }
 
-        results = []
-
-        # 🔹 Compare with DB images
-        for filename, phash, upload_time in images:
-            try:
-                existing_path = os.path.join(UPLOAD_FOLDER, filename)
-
-                # 🔥 STRONG DEMO MATCH FIX
-                if new_hash == phash:
-                    final_score = 100
-                else:
-                    phash_score = phash_similarity(new_hash, phash)
-                    ssim_score = compute_ssim(file_path, existing_path)
-                    final_score = 0.7 * phash_score + 0.3 * ssim_score
-
-                results.append({
-                    "filename": filename,
-                    "score": final_score,
-                    "upload_time": upload_time
-                })
-
-            except Exception as e:
-                print("Comparison error:", e)
-
-        # 🔹 Sort results
-        results.sort(key=lambda x: x["score"], reverse=True)
-        top_matches = results[:3]
-
-        # 🔹 Seen before count
-        seen_before = len([r for r in results if r["score"] > 70])
-
-        # 🔹 Confidence
-        confidence = top_matches[0]["score"] if top_matches else 0
-        authenticity = 100 - confidence
-
-        # 🔹 Classification
-        if confidence > 80:
-            classification = "Reused"
-        elif confidence > 50:
-            classification = "Suspicious"
-        else:
-            classification = "Authentic"
-
-        # 🔹 Tamper
-        try:
-            tamper = detect_tampering(file_path)
-        except:
-            tamper = "Unknown"
-
-        # 🔹 Engagement
-        try:
-            engagement = simulate_engagement(confidence)
-        except:
-            engagement = "Unknown"
-
-        # 🔹 Online search (safe)
-        try:
-            online_results = search_online(file_path)
-        except Exception as e:
-            print("Online search failed:", e)
-            online_results = []
-
-        # 🔹 Save to DB
-        insert_image(file.filename, new_hash)
-        print("Inserted into DB:", file.filename)
-
-        # 🔹 Return response
-        return {
-            "confidence": confidence,
-            "authenticity": authenticity,
-            "classification": classification,
-            "seen_before_count": seen_before,
-            "top_matches": top_matches,
-            "tamper_status": tamper,
-            "engagement": engagement,
-            "online_matches": online_results
-        }
-
-    except Exception as e:
-        print("UPLOAD ERROR:")
-        traceback.print_exc()
-        return {
-            "error": str(e)
-        }
+# Mount frontend files from root
+app.mount("/", StaticFiles(directory=ROOT_DIR, html=True), name="static")

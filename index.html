@@ -2,49 +2,55 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Image Traceability Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Authenticity Platform</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="container">
+        <header>
+            <h1>🔍 Image Traceability Engine</h1>
+            <p>Verify authenticity and detect tampering within our database.</p>
+        </header>
 
-<div class="container">
+        <main>
+            <section class="upload-section">
+                <input type="file" id="imageInput" accept="image/*" hidden>
+                <label for="imageInput" class="upload-btn">Choose Image</label>
+                <div id="previewContainer">
+                    <img id="imagePreview" style="display: none;" />
+                </div>
+                <button id="analyzeBtn" disabled>Run Analysis</button>
+            </section>
 
-    <h1>🧠 Image Traceability Engine</h1>
+            <section id="resultsSection" class="hidden">
+                <div class="score-card">
+                    <h3>Authenticity Score</h3>
+                    <div class="score-circle" id="authScore">0%</div>
+                    <p id="decisionText"></p>
+                </div>
 
-    <div class="upload-box">
-        <input type="file" id="fileInput">
-        <button onclick="upload()">Analyze Image</button>
+                <div class="grid">
+                    <div class="card">
+                        <h4>🧩 Similarity</h4>
+                        <p>pHash: <span id="phashResult">--</span></p>
+                        <p>SSIM: <span id="ssimResult">--</span></p>
+                        <p>DB Matches: <span id="matchesFound">0</span></p>
+                    </div>
+                    <div class="card">
+                        <h4>⚠️ Tamper Check</h4>
+                        <p>Status: <span id="tamperStatus">--</span></p>
+                        <p>Noise/Variance: <span id="edgeVariance">--</span></p>
+                    </div>
+                    <div class="card">
+                        <h4>📈 Engagement</h4>
+                        <p>Viral Score: <span id="viralScore">--</span>/100</p>
+                        <p id="behaviorText" style="font-size: 0.85rem; color: #94a3b8;"></p>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
-
-    <div id="loading" class="hidden">⏳ Processing...</div>
-
-    <div id="result" class="result hidden">
-
-        <div class="card">
-            <h2>📊 Analysis</h2>
-            <p><strong>Confidence:</strong> <span id="confidence"></span></p>
-            <p><strong>Authenticity:</strong> <span id="authenticity"></span></p>
-            <p><strong>Classification:</strong> <span id="classification"></span></p>
-            <p><strong>Seen Before:</strong> <span id="seen"></span></p>
-            <p><strong>Tamper Status:</strong> <span id="tamper"></span></p>
-            <p><strong>Engagement:</strong> <span id="engagement"></span></p>
-        </div>
-
-        <div class="card">
-            <h2>🏆 Top Matches</h2>
-            <div id="matches"></dicov>
-        </div>
-
-        <div class="card">
-            <h2>🌐 Online Matches</h2>
-            <div id="online"></div>
-        </div>
-
-    </div>
-
-</div>
-
-<script src="./script.js"></script>
-
+    <script src="script.js"></script>
 </body>
 </html>

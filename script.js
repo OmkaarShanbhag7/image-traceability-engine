@@ -1,67 +1,41 @@
 const BACKEND_URL = "https://image-traceability-engine.onrender.com"; // change if needed
 
-async function upload() {
+const imageInput = document.getElementById('imageInput');
+const imagePreview = document.getElementById('imagePreview');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const resultsSection = document.getElementById('resultsSection');
 
-    const fileInput = document.getElementById("fileInput");
-    const file = fileInput.files[0];
-
-    if (!file) {
-        alert("Please select an image!");
-        return;
+imageInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        imagePreview.src = URL.createObjectURL(e.target.files[0]);
+        imagePreview.style.display = 'block';
+        analyzeBtn.disabled = false;
     }
+});
 
-    document.getElementById("loading").classList.remove("hidden");
-    document.getElementById("result").classList.add("hidden");
-
-    let formData = new FormData();
-    formData.append("file", file);
+analyzeBtn.addEventListener('click', async () => {
+    analyzeBtn.textContent = 'Processing...';
+    const formData = new FormData();
+    formData.append('file', imageInput.files[0]);
 
     try {
-        const response = await fetch(`${BACKEND_URL}/upload`, {
-            method: "POST",
-            body: formData
-        });
-
+        const response = await fetch('/analyze', { method: 'POST', body: formData });
         const data = await response.json();
+        
+        resultsSection.classList.remove('hidden');
+        document.getElementById('authScore').textContent = `${data.final_score.toFixed(1)}%`;
+        document.getElementById('decisionText').textContent = data.decision;
+        document.getElementById('phashResult').textContent = `${data.similarity.phash_similarity.toFixed(1)}%`;
+        document.getElementById('ssimResult').textContent = `${data.similarity.ssim_score.toFixed(1)}%`;
+        document.getElementById('matchesFound').textContent = data.traceability.seen_before_count;
+        document.getElementById('tamperStatus').textContent = data.tamper_analysis.suspicious ? "Modified" : "Original";
+        document.getElementById('edgeVariance').textContent = Math.round(data.tamper_analysis.edge_variance);
+        document.getElementById('viralScore').textContent = data.engagement.viral_score;
+        document.getElementById('behaviorText').textContent = data.engagement.behavior;
 
-        // Fill analysis
-        document.getElementById("confidence").innerText = data.confidence.toFixed(2) + "%";
-        document.getElementById("authenticity").innerText = data.authenticity.toFixed(2) + "%";
-        document.getElementById("classification").innerText = data.classification;
-        document.getElementById("seen").innerText = data.seen_before_count;
-        document.getElementById("tamper").innerText = data.tamper_status;
-        document.getElementById("engagement").innerText = data.engagement;
-
-        // Top Matches
-        let matchesHTML = "";
-        data.top_matches.forEach(m => {
-            matchesHTML += `
-                <div>
-                    <p><strong>${m.filename}</strong> — ${m.score.toFixed(2)}%</p>
-                </div>
-            `;
-        });
-        document.getElementById("matches").innerHTML = matchesHTML;
-
-        // Online Matches
-        let onlineHTML = "";
-        data.online_matches.forEach(m => {
-            onlineHTML += `
-                <div>
-                    <img src="${m.thumbnail}" width="120"><br>
-                    <p>${m.title}</p>
-                    <a href="${m.link}" target="_blank">🔗 View Source</a>
-                    <hr>
-                </div>
-            `;
-        });
-        document.getElementById("online").innerHTML = onlineHTML;
-
-        document.getElementById("loading").classList.add("hidden");
-        document.getElementById("result").classList.remove("hidden");
-
-    } catch (error) {
-        console.error(error);
-        alert("Error connecting to backend");
+    } catch (err) {
+        alert("Server Error. Make sure backend is running.");
+    } finally {
+        analyzeBtn.textContent = 'Run Analysis';
     }
-}
+});

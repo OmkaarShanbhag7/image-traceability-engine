@@ -1,49 +1,15 @@
-import sqlite3
-from datetime import datetime
+import sqlite3, os
 
-DB_NAME = "traceability.db"
+DB_PATH = os.path.join(os.path.dirname(__file__), "traceability.db")
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS images (id INTEGER PRIMARY KEY, filename TEXT, phash TEXT)")
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS images (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT,
-        phash TEXT,
-        upload_time TEXT
-    )
-    """)
+def add_image(filename, phash):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("INSERT INTO images (filename, phash) VALUES (?, ?)", (filename, phash))
 
-    conn.commit()
-    conn.close()
-
-def insert_image(filename, phash):
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-        INSERT INTO images (filename, phash, upload_time)
-        VALUES (?, ?, ?)
-        """, (filename, phash, datetime.now().isoformat()))
-
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print("DB insert error:", e)
-        
 def get_all_images():
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT filename, phash, upload_time FROM images")
-        data = cursor.fetchall()
-
-        conn.close()
-        return data
-    except Exception as e:
-        print("DB read error:", e)
-        return []
+    with sqlite3.connect(DB_PATH) as conn:
+        return conn.execute("SELECT filename, phash FROM images").fetchall()

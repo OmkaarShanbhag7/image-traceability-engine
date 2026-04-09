@@ -1,10 +1,7 @@
 fastapi
 uvicorn
-pillow
-imagehash
-opencv-python
-scikit-image
-numpy
-requests
-google-search-results
 python-multipart
+opencv-python-headless
+Pillow
+ImageHash
+scikit-image

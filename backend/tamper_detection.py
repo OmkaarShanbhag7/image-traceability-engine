@@ -1,14 +1,7 @@
 import cv2
-import numpy as np
 
-def detect_tampering(image_path):
-    img = cv2.imread(image_path, 0)
-    edges = cv2.Canny(img, 100, 200)
-    variance = np.var(edges)
-
-    if variance > 1000:
-        return "High"
-    elif variance > 500:
-        return "Medium"
-    else:
-        return "Low"
+def analyze_tampering(path):
+    img = cv2.imread(path, 0)
+    if img is None: return {"suspicious": False, "edge_variance": 0}
+    var = cv2.Laplacian(img, cv2.CV_64F).var()
+    return {"edge_variance": float(var), "suspicious": var < 50 or var > 4000}
