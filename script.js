@@ -1,5 +1,3 @@
-const BACKEND_URL = "https://image-traceability-engine.onrender.com"; // change if needed
-
 const imageInput = document.getElementById('imageInput');
 const imagePreview = document.getElementById('imagePreview');
 const analyzeBtn = document.getElementById('analyzeBtn');
@@ -15,6 +13,8 @@ imageInput.addEventListener('change', (e) => {
 
 analyzeBtn.addEventListener('click', async () => {
     analyzeBtn.textContent = 'Processing...';
+    analyzeBtn.disabled = true; // Prevent double clicking
+    
     const formData = new FormData();
     formData.append('file', imageInput.files[0]);
 
@@ -22,6 +22,12 @@ analyzeBtn.addEventListener('click', async () => {
         const response = await fetch('/analyze', { method: 'POST', body: formData });
         const data = await response.json();
         
+        // This checks if Python sent back a 500 Error
+        if (!response.ok) {
+            throw new Error(data.detail || "Unknown Server Error");
+        }
+        
+        // If successful, show results
         resultsSection.classList.remove('hidden');
         document.getElementById('authScore').textContent = `${data.final_score.toFixed(1)}%`;
         document.getElementById('decisionText').textContent = data.decision;
@@ -34,8 +40,11 @@ analyzeBtn.addEventListener('click', async () => {
         document.getElementById('behaviorText').textContent = data.engagement.behavior;
 
     } catch (err) {
-        alert("Server Error. Make sure backend is running.");
+        // This alerts the EXACT Python error on your screen
+        alert("Backend Error: " + err.message);
+        console.error("Full error:", err);
     } finally {
         analyzeBtn.textContent = 'Run Analysis';
+        analyzeBtn.disabled = false;
     }
 });
