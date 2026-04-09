@@ -1,6 +1,5 @@
 const BACKEND_URL = "https://image-traceability-engine.onrender.com"; // change if needed
 
-async function uploadImage() {
 async function upload() {
 
     const fileInput = document.getElementById("fileInput");
@@ -64,6 +63,5 @@ async function upload() {
     } catch (error) {
         console.error(error);
         alert("Error connecting to backend");
-        }
     }
 }
