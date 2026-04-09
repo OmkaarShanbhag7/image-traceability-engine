@@ -1,19 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Image Traceability Engine</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Image Traceability Engine</h1>
 
-    <input type="file" id="imageInput">
-    <button onclick="uploadImage()">Analyze</button>
-    <button onclick="resetSystem()">Reset System</button>
+<div class="container">
 
+    <h1>🧠 Image Traceability Engine</h1>
 
-    <div id="result"></div>
+    <div class="upload-box">
+        <input type="file" id="fileInput">
+        <button onclick="upload()">Analyze Image</button>
+    </div>
 
-    <script src="script.js"></script>
+    <div id="loading" class="hidden">⏳ Processing...</div>
+
+    <div id="result" class="result hidden">
+
+        <div class="card">
+            <h2>📊 Analysis</h2>
+            <p><strong>Confidence:</strong> <span id="confidence"></span></p>
+            <p><strong>Authenticity:</strong> <span id="authenticity"></span></p>
+            <p><strong>Classification:</strong> <span id="classification"></span></p>
+            <p><strong>Seen Before:</strong> <span id="seen"></span></p>
+            <p><strong>Tamper Status:</strong> <span id="tamper"></span></p>
+            <p><strong>Engagement:</strong> <span id="engagement"></span></p>
+        </div>
+
+        <div class="card">
+            <h2>🏆 Top Matches</h2>
+            <div id="matches"></div>
+        </div>
+
+        <div class="card">
+            <h2>🌐 Online Matches</h2>
+            <div id="online"></div>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+
 </body>
 </html>

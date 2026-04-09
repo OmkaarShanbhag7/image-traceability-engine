@@ -1,80 +1,76 @@
-@app.post("/analyze")
-async def analyze_image(file: UploadFile = File(...)):
-    file_path = f"{UPLOAD_FOLDER}/{file.filename}"
+from fastapi import FastAPI, UploadFile, File
+import shutil
+import os
+from database import init_db, insert_image, get_all_images
+from hashing import compute_phash, phash_similarity
+from visual_difference import compute_ssim
+from tamper_detection import detect_tampering
+from engagement import simulate_engagement
+from reverse_search_online import search_online
 
-    # Save file
+app = FastAPI()
+
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+init_db()
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    new_hash = generate_phash(file_path)
+    new_hash = compute_phash(file_path)
 
-    db = SessionLocal()
-    images = db.query(ImageRecord).all()
+    images = get_all_images()
 
-    total_images_compared = len(images)
+    results = []
 
-    top_matches = []
+    for filename, phash, upload_time in images:
+        existing_path = os.path.join(UPLOAD_FOLDER, filename)
 
-    for image in images:
-        similarity = compare_hash(new_hash, image.phash)
+        phash_score = phash_similarity(new_hash, phash)
+        ssim_score = compute_ssim(file_path, existing_path)
 
-        image_path = f"{UPLOAD_FOLDER}/{image.filename}"
+        final_score = 0.7 * phash_score + 0.3 * ssim_score
 
-        try:
-            visual_diff = calculate_ssim(file_path, image_path)
-        except:
-            visual_diff = 100  # worst case
-
-        ssim_similarity = max(0, 100 - visual_diff)
-
-        final_score = (0.7 * similarity) + (0.3 * ssim_similarity)
-
-        top_matches.append({
-            "filename": image.filename,
-            "phash_similarity": round(similarity, 2),
-            "ssim_similarity": round(ssim_similarity, 2),
-            "final_score": round(final_score, 2)
+        results.append({
+            "filename": filename,
+            "score": final_score,
+            "upload_time": upload_time
         })
 
-    top_matches = sorted(top_matches, key=lambda x: x["final_score"], reverse=True)[:3]
+    results.sort(key=lambda x: x["score"], reverse=True)
+    top_matches = results[:3]
 
-    db.add(ImageRecord(filename=file.filename, phash=new_hash))
-    db.commit()
-    db.close()
+    seen_before = len([r for r in results if r["score"] > 70])
 
-    best_match = top_matches[0] if top_matches else None
+    confidence = top_matches[0]["score"] if top_matches else 0
+    authenticity = 100 - confidence
 
-    confidence_score = best_match["final_score"] if best_match else 0
-    authenticity_score = max(0, 100 - confidence_score)
-
-    if confidence_score > 80:
-        classification = "Reused Content"
-    elif confidence_score > 50:
+    if confidence > 80:
+        classification = "Reused"
+    elif confidence > 50:
         classification = "Suspicious"
     else:
         classification = "Authentic"
 
+    tamper = detect_tampering(file_path)
+    engagement = simulate_engagement(confidence)
 
-    tamper_status = detect_tampering(file_path)
-    engagement_status = simulate_engagement(confidence_score)
+    online_results = search_online(file_path)
+
+    insert_image(file.filename, new_hash)
 
     return {
-        "top_matches": top_matches,
-        "confidence_score": f"{confidence_score:.2f}%",
-        "authenticity_score": f"{authenticity_score:.2f}%",
+        "confidence": confidence,
+        "authenticity": authenticity,
         "classification": classification,
-        "total_images_compared": total_images_compared,
-        "tamper_analysis": tamper_status,
-        "engagement_analysis": engagement_status
+        "seen_before_count": seen_before,
+        "top_matches": top_matches,
+        "tamper_status": tamper,
+        "engagement": engagement,
+        "online_matches": online_results
     }
-@app.post("/reset")
-def reset_system():
-    db = SessionLocal()
-    db.query(ImageRecord).delete()
-    db.commit()
-    db.close()
-
-    for file in os.listdir(UPLOAD_FOLDER):
-        os.remove(os.path.join(UPLOAD_FOLDER, file))
-
-    return {"message": "System reset successfully"}

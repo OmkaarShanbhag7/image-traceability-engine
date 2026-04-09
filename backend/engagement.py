@@ -1,7 +1,7 @@
-def simulate_engagement(reuse_score):
-    if reuse_score > 80:
-        return "Likely Organic Engagement"
-    elif reuse_score > 50:
-        return "Mixed Engagement"
+def simulate_engagement(score):
+    if score > 80:
+        return "High viral potential"
+    elif score > 50:
+        return "Moderate engagement"
     else:
-        return "Suspicious Engagement Pattern"
+        return "Low engagement"

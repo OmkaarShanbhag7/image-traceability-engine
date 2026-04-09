@@ -1,70 +1,69 @@
 const BACKEND_URL = "https://image-traceability-engine.onrender.com"; // change if needed
 
 async function uploadImage() {
-    const fileInput = document.getElementById("imageInput");
+async function upload() {
 
-    if (!fileInput.files[0]) {
-        alert("Please select an image first.");
+    const fileInput = document.getElementById("fileInput");
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert("Please select an image!");
         return;
     }
 
-    // 🔥 Loading UI
-    document.getElementById("result").innerHTML = `
-        <div style="text-align:center;">
-            <h2>Analyzing Image...</h2>
-            <p>Please wait...</p>
-        </div>
-    `;
+    document.getElementById("loading").classList.remove("hidden");
+    document.getElementById("result").classList.add("hidden");
 
-    const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
+    let formData = new FormData();
+    formData.append("file", file);
 
-    const response = await fetch(`${BACKEND_URL}/analyze`, {
-        method: "POST",
-        body: formData
-    });
+    try {
+        const response = await fetch("http://127.0.0.1:8000/upload", {
+            method: "POST",
+            body: formData
+        });
 
-    const result = await response.json();
+        const data = await response.json();
 
-    // 🔥 MAIN RESULT CARD
-    let html = `
-        <div style="background:#111; padding:20px; border-radius:15px; margin-top:20px;">
-            <h2>Analysis Report</h2>
+        // Fill analysis
+        document.getElementById("confidence").innerText = data.confidence.toFixed(2) + "%";
+        document.getElementById("authenticity").innerText = data.authenticity.toFixed(2) + "%";
+        document.getElementById("classification").innerText = data.classification;
+        document.getElementById("seen").innerText = data.seen_before_count;
+        document.getElementById("tamper").innerText = data.tamper_status;
+        document.getElementById("engagement").innerText = data.engagement;
 
-            <p><b>Confidence Score:</b> ${result.confidence_score}</p>
-            <p><b>Authenticity Score:</b> ${result.authenticity_score}</p>
-            <p><b>Classification:</b> ${result.classification}</p>
-            <p><b>Total Images Compared:</b> ${result.total_images_compared}</p>
-            <p><b>Tamper Status:</b> ${result.tamper_analysis}</p>
-            <p><b>Engagement:</b> ${result.engagement_analysis}</p>
-        </div>
+        // Top Matches
+        let matchesHTML = "";
+        data.top_matches.forEach(m => {
+            matchesHTML += `
+                <div>
+                    <p><strong>${m.filename}</strong> — ${m.score.toFixed(2)}%</p>
+                </div>
+            `;
+        });
+        document.getElementById("matches").innerHTML = matchesHTML;
 
-        <h2 style="margin-top:30px;">Top Matches</h2>
-    `;
+        // Online Matches
+        let onlineHTML = "";
+        data.online_matches.forEach(m => {
+            onlineHTML += `
+                <div>
+                    <img src="${m.thumbnail}" width="120"><br>
+                    <p>${m.title}</p>
+                    <a href="${m.link}" target="_blank">🔗 View Source</a>
+                    <hr>
+                </div>
+            `;
+        });
+        document.getElementById("online").innerHTML = onlineHTML;
 
-    // 🔥 SHOW TOP 3 MATCHES
-    result.top_matches.forEach(match => {
-        html += `
-            <div style="background:#1a1a1a; padding:15px; border-radius:12px; margin-top:15px;">
-                <p><b>Image:</b> ${match.filename}</p>
-                <p>pHash Similarity: ${match.phash_similarity}%</p>
-                <p>SSIM Similarity: ${match.ssim_similarity}%</p>
-                <p><b>Final Score:</b> ${match.final_score}%</p>
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("result").classList.remove("hidden");
 
-                <img src="${BACKEND_URL}/uploads/${match.filename}" width="200" style="margin-top:10px; border-radius:10px;">
-            </div>
-        `;
-    });
-
-    document.getElementById("result").innerHTML = html;
-}
-
-// 🔥 RESET BUTTON
-async function resetSystem() {
-    await fetch(`${BACKEND_URL}/reset`, {
-        method: "POST"
-    });
-
-    document.getElementById("result").innerHTML =
-        "<h2>System Reset Successfully</h2>";
+    } catch (error) {
+        console.error(error);
+        alert("Error connecting to backend");
+        }
+    }
 }

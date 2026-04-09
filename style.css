@@ -1,23 +1,55 @@
 body {
-    font-family: Arial;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: white;
+}
+
+.container {
     text-align: center;
-    margin-top: 50px;
+    padding: 30px;
+}
+
+h1 {
+    margin-bottom: 30px;
+}
+
+.upload-box {
+    margin-bottom: 20px;
+}
+
+input {
+    padding: 10px;
 }
 
 button {
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-    border: none;
     padding: 10px 20px;
-    border-radius: 10px;
+    background: #3b82f6;
+    border: none;
     color: white;
-    font-weight: bold;
     cursor: pointer;
+    border-radius: 5px;
 }
 
 button:hover {
-    opacity: 0.8;
+    background: #2563eb;
 }
 
-img {
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+.card {
+    background: #1e293b;
+    padding: 20px;
+    margin: 20px auto;
+    border-radius: 10px;
+    width: 60%;
+    text-align: left;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+.hidden {
+    display: none;
+}
+
+#online img {
+    border-radius: 8px;
+    margin: 10px 0;
 }

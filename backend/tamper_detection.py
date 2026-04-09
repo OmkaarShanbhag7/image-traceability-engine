@@ -2,15 +2,13 @@ import cv2
 import numpy as np
 
 def detect_tampering(image_path):
-    image = cv2.imread(image_path)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 100, 200)
-
+    img = cv2.imread(image_path, 0)
+    edges = cv2.Canny(img, 100, 200)
     variance = np.var(edges)
 
     if variance > 1000:
-        return "High Manipulation Probability"
+        return "High"
     elif variance > 500:
-        return "Moderate Manipulation"
+        return "Medium"
     else:
-        return "Low Manipulation"
+        return "Low"
