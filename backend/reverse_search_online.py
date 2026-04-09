@@ -37,15 +37,13 @@ def search_online(image_path):
         results = search.get_dict()
 
         matches = []
-
-        if "image_results" in results:
-            for item in results["image_results"][:5]:
+        if "visual_matches" in results:
+            for item in results["visual_matches"][:5]:
                 matches.append({
                     "title": item.get("title"),
                     "link": item.get("link"),
                     "thumbnail": item.get("thumbnail")
                 })
-
         return matches
 
     except Exception as e:
