@@ -70,7 +70,11 @@ async def upload_image(file: UploadFile = File(...)):
     tamper = detect_tampering(file_path)
     engagement = simulate_engagement(confidence)
 
-    online_results = search_online(file_path)
+    try:
+        online_results = search_online(file_path)
+    except Exception as e:
+        print("Online search failed:", e)
+        online_results = []
 
     insert_image(file.filename, new_hash)
 
