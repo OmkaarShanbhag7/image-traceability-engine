@@ -7,7 +7,15 @@ from visual_difference import compute_ssim
 from tamper_detection import detect_tampering
 from engagement import simulate_engagement
 from reverse_search_online import search_online
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app = FastAPI()
 
 UPLOAD_FOLDER = "uploads"
