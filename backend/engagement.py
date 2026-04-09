@@ -1,6 +1,7 @@
-import random
-
-def simulate_engagement(score):
-    v_score = random.randint(70, 100) if score > 70 else random.randint(10, 60)
-    behavior = "Likely to go viral due to reuse/controversy" if score > 70 else "Natural organic reach"
-    return {"viral_score": v_score, "behavior": behavior}
+def simulate_engagement(reuse_score):
+    if reuse_score > 80:
+        return "Likely Organic Engagement"
+    elif reuse_score > 50:
+        return "Mixed Engagement"
+    else:
+        return "Suspicious Engagement Pattern"

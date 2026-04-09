@@ -1,72 +1,94 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import os
 import shutil
-import traceback
+import os
+from visual_difference import calculate_ssim
+from database import engine, SessionLocal
+from models import Base, ImageRecord
+from hashing import generate_phash, compare_hash
+from tamper_detection import detect_tampering
+from engagement import simulate_engagement
 
-import database, hashing, visual_difference, tamper_detection, engagement
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
-    CORSMiddleware, 
-    allow_origins=["*"], 
-    allow_methods=["*"], 
-    allow_headers=["*"]
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# FIXED PATHS FOR RENDER
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-database.init_db()
+# Static folder for uploaded images
+UPLOAD_FOLDER = "../uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_FOLDER), name="uploads")
 
 @app.post("/analyze")
-async def analyze(file: UploadFile = File(...)):
-    try:
-        path = os.path.join(UPLOAD_DIR, file.filename)
-        with open(path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+async def analyze_image(file: UploadFile = File(...)):
+    file_path = f"{UPLOAD_FOLDER}/{file.filename}"
 
-        current_hash = hashing.compute_phash(path)
-        db_images = database.get_all_images()
-        
-        best_phash = 0.0
-        best_ssim = 0.0
-        matches = 0
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-        for fname, db_h in db_images:
-            sim = hashing.calculate_similarity(current_hash, db_h)
-            if sim > 80:
-                matches += 1
-                db_path = os.path.join(UPLOAD_DIR, fname)
-                if os.path.exists(db_path):
-                    s_score = visual_difference.compute_ssim(path, db_path)
-                    best_ssim = max(best_ssim, s_score)
-            best_phash = max(best_phash, sim)
+    new_hash = generate_phash(file_path)
 
-        final = (0.7 * best_phash) + (0.3 * best_ssim) if best_ssim > 0 else best_phash
-        tamper_results = tamper_detection.analyze_tampering(path)
-        eng_sim = engagement.simulate_engagement(final)
-        database.add_image(file.filename, current_hash)
+    db = SessionLocal()
+    images = db.query(ImageRecord).all()
 
-        return {
-            "final_score": final,
-            "decision": "Reused" if final > 80 else ("Suspicious" if final > 50 else "Authentic"),
-            "similarity": {"phash_similarity": best_phash, "ssim_score": best_ssim},
-            "traceability": {"seen_before_count": matches},
-            "tamper_analysis": tamper_results,
-            "engagement": eng_sim
-        }
-    except Exception as e:
-        print(traceback.format_exc())
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+    total_images_compared = len(images)
 
-# MOUNT STATIC FOLDER
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+    reuse_score = 0
+    most_similar_filename = None
+    most_similar_path = None
+
+    for image in images:
+        similarity = compare_hash(new_hash, image.phash)
+        if similarity > reuse_score:
+            reuse_score = similarity
+            most_similar_filename = image.filename
+            most_similar_path = f"{UPLOAD_FOLDER}/{image.filename}"
+
+    db.add(ImageRecord(filename=file.filename, phash=new_hash))
+    db.commit()
+    db.close()
+
+    tamper_status = detect_tampering(file_path)
+    engagement_status = simulate_engagement(reuse_score)
+
+    risk_level = "Low Risk"
+    if reuse_score > 80:
+        risk_level = "High Reuse Risk"
+    elif reuse_score > 50:
+        risk_level = "Moderate Reuse Risk"
+
+    visual_difference = None
+    if most_similar_path:
+        visual_difference = calculate_ssim(file_path, most_similar_path)
+
+    return {
+        "reuse_probability": f"{reuse_score:.2f}%",
+        "similarity_score": f"{reuse_score:.2f}",
+        "most_similar_image": most_similar_filename,
+        "total_images_compared": total_images_compared,
+        "tamper_analysis": tamper_status,
+        "engagement_analysis": engagement_status,
+        "risk_level": risk_level,
+        "visual_difference_percentage": visual_difference
+    }
+
+@app.post("/reset")
+def reset_system():
+    db = SessionLocal()
+    db.query(ImageRecord).delete()
+    db.commit()
+    db.close()
+
+    for file in os.listdir(UPLOAD_FOLDER):
+        os.remove(os.path.join(UPLOAD_FOLDER, file))
+
+    return {"message": "System reset successfully"}
