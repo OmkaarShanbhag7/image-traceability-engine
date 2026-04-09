@@ -7,3 +7,4 @@ scikit-image
 numpy
 requests
 google-search-results
+python-multipart
