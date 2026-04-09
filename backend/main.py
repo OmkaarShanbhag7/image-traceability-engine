@@ -1,37 +1,8 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-import shutil
-import os
-from visual_difference import calculate_ssim
-from database import engine, SessionLocal
-from models import Base, ImageRecord
-from hashing import generate_phash, compare_hash
-from tamper_detection import detect_tampering
-from engagement import simulate_engagement
-
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI()
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Static folder for uploaded images
-UPLOAD_FOLDER = "../uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_FOLDER), name="uploads")
-
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     file_path = f"{UPLOAD_FOLDER}/{file.filename}"
 
+    # Save file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
@@ -42,45 +13,60 @@ async def analyze_image(file: UploadFile = File(...)):
 
     total_images_compared = len(images)
 
-    reuse_score = 0
-    most_similar_filename = None
-    most_similar_path = None
+    top_matches = []
 
     for image in images:
         similarity = compare_hash(new_hash, image.phash)
-        if similarity > reuse_score:
-            reuse_score = similarity
-            most_similar_filename = image.filename
-            most_similar_path = f"{UPLOAD_FOLDER}/{image.filename}"
+
+        image_path = f"{UPLOAD_FOLDER}/{image.filename}"
+
+        try:
+            visual_diff = calculate_ssim(file_path, image_path)
+        except:
+            visual_diff = 100  # worst case
+
+        ssim_similarity = max(0, 100 - visual_diff)
+
+        final_score = (0.7 * similarity) + (0.3 * ssim_similarity)
+
+        top_matches.append({
+            "filename": image.filename,
+            "phash_similarity": round(similarity, 2),
+            "ssim_similarity": round(ssim_similarity, 2),
+            "final_score": round(final_score, 2)
+        })
+
+    top_matches = sorted(top_matches, key=lambda x: x["final_score"], reverse=True)[:3]
 
     db.add(ImageRecord(filename=file.filename, phash=new_hash))
     db.commit()
     db.close()
 
+    best_match = top_matches[0] if top_matches else None
+
+    confidence_score = best_match["final_score"] if best_match else 0
+    authenticity_score = max(0, 100 - confidence_score)
+
+    if confidence_score > 80:
+        classification = "Reused Content"
+    elif confidence_score > 50:
+        classification = "Suspicious"
+    else:
+        classification = "Authentic"
+
+
     tamper_status = detect_tampering(file_path)
-    engagement_status = simulate_engagement(reuse_score)
-
-    risk_level = "Low Risk"
-    if reuse_score > 80:
-        risk_level = "High Reuse Risk"
-    elif reuse_score > 50:
-        risk_level = "Moderate Reuse Risk"
-
-    visual_difference = None
-    if most_similar_path:
-        visual_difference = calculate_ssim(file_path, most_similar_path)
+    engagement_status = simulate_engagement(confidence_score)
 
     return {
-        "reuse_probability": f"{reuse_score:.2f}%",
-        "similarity_score": f"{reuse_score:.2f}",
-        "most_similar_image": most_similar_filename,
+        "top_matches": top_matches,
+        "confidence_score": f"{confidence_score:.2f}%",
+        "authenticity_score": f"{authenticity_score:.2f}%",
+        "classification": classification,
         "total_images_compared": total_images_compared,
         "tamper_analysis": tamper_status,
-        "engagement_analysis": engagement_status,
-        "risk_level": risk_level,
-        "visual_difference_percentage": visual_difference
+        "engagement_analysis": engagement_status
     }
-
 @app.post("/reset")
 def reset_system():
     db = SessionLocal()
