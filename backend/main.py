@@ -1,10 +1,8 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 import shutil
 import os
-
 from visual_difference import calculate_ssim
 from database import engine, SessionLocal
 from models import Base, ImageRecord
@@ -12,12 +10,11 @@ from hashing import generate_phash, compare_hash
 from tamper_detection import detect_tampering
 from engagement import simulate_engagement
 
-# Initialize DB
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# CORS (safe for demo)
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,37 +23,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ================================
-# 📁 STATIC FRONTEND (IMPORTANT)
-# ================================
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/")
-def serve_home():
-    return FileResponse("static/index.html")
-
-
-# ================================
-# 📁 UPLOAD FOLDER
-# ================================
-UPLOAD_FOLDER = "uploads"
+# Static folder for uploaded images
+UPLOAD_FOLDER = "../uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 app.mount("/uploads", StaticFiles(directory=UPLOAD_FOLDER), name="uploads")
 
-
-# ================================
-# 🔍 ANALYZE API
-# ================================
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     file_path = f"{UPLOAD_FOLDER}/{file.filename}"
 
-    # Save file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Generate hash
     new_hash = generate_phash(file_path)
 
     db = SessionLocal()
@@ -68,32 +46,26 @@ async def analyze_image(file: UploadFile = File(...)):
     most_similar_filename = None
     most_similar_path = None
 
-    # Compare with stored images
     for image in images:
         similarity = compare_hash(new_hash, image.phash)
-
         if similarity > reuse_score:
             reuse_score = similarity
             most_similar_filename = image.filename
             most_similar_path = f"{UPLOAD_FOLDER}/{image.filename}"
 
-    # Save new image to DB
     db.add(ImageRecord(filename=file.filename, phash=new_hash))
     db.commit()
     db.close()
 
-    # Additional analysis
     tamper_status = detect_tampering(file_path)
     engagement_status = simulate_engagement(reuse_score)
 
-    # Risk classification
     risk_level = "Low Risk"
     if reuse_score > 80:
         risk_level = "High Reuse Risk"
     elif reuse_score > 50:
         risk_level = "Moderate Reuse Risk"
 
-    # Visual difference
     visual_difference = None
     if most_similar_path:
         visual_difference = calculate_ssim(file_path, most_similar_path)
@@ -109,10 +81,6 @@ async def analyze_image(file: UploadFile = File(...)):
         "visual_difference_percentage": visual_difference
     }
 
-
-# ================================
-# 🔄 RESET API
-# ================================
 @app.post("/reset")
 def reset_system():
     db = SessionLocal()
@@ -120,7 +88,6 @@ def reset_system():
     db.commit()
     db.close()
 
-    # Clear uploads
     for file in os.listdir(UPLOAD_FOLDER):
         os.remove(os.path.join(UPLOAD_FOLDER, file))
 
