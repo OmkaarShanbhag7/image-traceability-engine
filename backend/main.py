@@ -101,7 +101,8 @@ async def upload_image(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        print("UPLOAD ERROR:", e)
+        import traceback
+        traceback.print_exc()
         return {
-            "error": "Server error occurred"
+            "error": str(e)
         }

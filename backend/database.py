@@ -20,23 +20,30 @@ def init_db():
     conn.close()
 
 def insert_image(filename, phash):
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
 
-    cursor.execute("""
-    INSERT INTO images (filename, phash, upload_time)
-    VALUES (?, ?, ?)
-    """, (filename, phash, datetime.now().isoformat()))
+        cursor.execute("""
+        INSERT INTO images (filename, phash, upload_time)
+        VALUES (?, ?, ?)
+        """, (filename, phash, datetime.now().isoformat()))
 
-    conn.commit()
-    conn.close()
-
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print("DB insert error:", e)
+        
 def get_all_images():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
 
-    cursor.execute("SELECT filename, phash, upload_time FROM images")
-    data = cursor.fetchall()
+        cursor.execute("SELECT filename, phash, upload_time FROM images")
+        data = cursor.fetchall()
 
-    conn.close()
-    return data
+        conn.close()
+        return data
+    except Exception as e:
+        print("DB read error:", e)
+        return []

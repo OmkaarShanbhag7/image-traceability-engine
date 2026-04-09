@@ -2,8 +2,11 @@ from PIL import Image
 import imagehash
 
 def compute_phash(image_path):
-    image = Image.open(image_path)
-    return str(imagehash.phash(image))
+    try:
+        image = Image.open(image_path)
+        return str(imagehash.phash(image))
+    except:
+        return "0" * 16
 
 def hamming_distance(hash1, hash2):
     return sum(c1 != c2 for c1, c2 in zip(hash1, hash2))
