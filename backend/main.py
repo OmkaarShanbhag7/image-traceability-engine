@@ -27,64 +27,81 @@ init_db()
 
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    new_hash = compute_phash(file_path)
-
-    images = get_all_images()
-
-    results = []
-
-    for filename, phash, upload_time in images:
-        existing_path = os.path.join(UPLOAD_FOLDER, filename)
-
-        phash_score = phash_similarity(new_hash, phash)
-        ssim_score = compute_ssim(file_path, existing_path)
-
-        final_score = 0.7 * phash_score + 0.3 * ssim_score
-
-        results.append({
-            "filename": filename,
-            "score": final_score,
-            "upload_time": upload_time
-        })
-
-    results.sort(key=lambda x: x["score"], reverse=True)
-    top_matches = results[:3]
-
-    seen_before = len([r for r in results if r["score"] > 70])
-
-    confidence = top_matches[0]["score"] if top_matches else 0
-    authenticity = 100 - confidence
-
-    if confidence > 80:
-        classification = "Reused"
-    elif confidence > 50:
-        classification = "Suspicious"
-    else:
-        classification = "Authentic"
-
-    tamper = detect_tampering(file_path)
-    engagement = simulate_engagement(confidence)
-
     try:
-        online_results = search_online(file_path)
+        file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        new_hash = compute_phash(file_path)
+
+        images = get_all_images()
+
+        results = []
+
+        for filename, phash, upload_time in images:
+            try:
+                existing_path = os.path.join(UPLOAD_FOLDER, filename)
+
+                phash_score = phash_similarity(new_hash, phash)
+                ssim_score = compute_ssim(file_path, existing_path)
+
+                final_score = 0.7 * phash_score + 0.3 * ssim_score
+
+                results.append({
+                    "filename": filename,
+                    "score": final_score,
+                    "upload_time": upload_time
+                })
+            except Exception as e:
+                print("Error comparing image:", e)
+
+        results.sort(key=lambda x: x["score"], reverse=True)
+        top_matches = results[:3]
+
+        seen_before = len([r for r in results if r["score"] > 70])
+
+        confidence = top_matches[0]["score"] if top_matches else 0
+        authenticity = 100 - confidence
+
+        if confidence > 80:
+            classification = "Reused"
+        elif confidence > 50:
+            classification = "Suspicious"
+        else:
+            classification = "Authentic"
+
+        try:
+            tamper = detect_tampering(file_path)
+        except:
+            tamper = "Unknown"
+
+        try:
+            engagement = simulate_engagement(confidence)
+        except:
+            engagement = "Unknown"
+
+        try:
+            online_results = search_online(file_path)
+        except Exception as e:
+            print("Online search failed:", e)
+            online_results = []
+
+        insert_image(file.filename, new_hash)
+
+        return {
+            "confidence": confidence,
+            "authenticity": authenticity,
+            "classification": classification,
+            "seen_before_count": seen_before,
+            "top_matches": top_matches,
+            "tamper_status": tamper,
+            "engagement": engagement,
+            "online_matches": online_results
+        }
+
     except Exception as e:
-        print("Online search failed:", e)
-        online_results = []
-
-    insert_image(file.filename, new_hash)
-
-    return {
-        "confidence": confidence,
-        "authenticity": authenticity,
-        "classification": classification,
-        "seen_before_count": seen_before,
-        "top_matches": top_matches,
-        "tamper_status": tamper,
-        "engagement": engagement,
-        "online_matches": online_results
-    }
+        print("UPLOAD ERROR:", e)
+        return {
+            "error": "Server error occurred"
+        }
