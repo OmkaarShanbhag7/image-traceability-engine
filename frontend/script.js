@@ -1,4 +1,4 @@
-const BACKEND_URL = "https://image-traceability-engine.onrender.com"; // 🔥 CHANGE THIS
+const BACKEND_URL = "https://image-traceability-engine.onrender.com"; // 👈 PUT YOUR URL
 
 async function uploadImage() {
     const fileInput = document.getElementById("imageInput");
@@ -20,7 +20,6 @@ async function uploadImage() {
 
     document.getElementById("result").innerHTML = `
         <h3>Analysis Report</h3>
-
         <p><b>Reuse Probability:</b> ${result.reuse_probability}</p>
         <p><b>Total Images Compared:</b> ${result.total_images_compared}</p>
         <p><b>Tamper Status:</b> ${result.tamper_analysis}</p>
